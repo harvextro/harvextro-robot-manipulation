@@ -1,2 +1,2 @@
 # harvextro-robot-manipulation
-Robot control, simulation and manipulation for HarveXtro
+Robot control, simulation and manipulation for HarveXtro haha
