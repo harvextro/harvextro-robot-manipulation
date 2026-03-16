@@ -31,7 +31,7 @@ def measure_distance():
 
 
 BIN_HEIGHT = 20   
-FULL_THRESHOLD = 5  
+FULL_THRESHOLD = 8  
 
 while True:
     distance = measure_distance()
