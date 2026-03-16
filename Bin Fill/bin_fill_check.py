@@ -39,7 +39,11 @@ while True:
 
     if distance <= FULL_THRESHOLD:
         print("⚠️ BIN FULL!")
+        print("Sending info to mobile app...")
+        print("Robot is paused...")
     else:
         print("Bin not full")
 
     time.sleep(2)
+    
+    
