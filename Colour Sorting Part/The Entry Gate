@@ -1,0 +1,33 @@
+from machine import Pin, PWM, UART
+import time
+
+# Setup UART and Servo (GPIO 18)
+uart = UART(0, baudrate=115200)
+servo = PWM(Pin(18), freq=50)
+
+def set_servo_angle(angle):
+    """Calculates duty cycle for specific angles"""
+    # 0.5ms to 2.5ms pulse width usually maps to 0-180 degrees
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+# Start in a neutral position (e.g., 45 degrees)
+set_servo_angle(45)
+
+while True:
+    if uart.any():
+        command = uart.readline().decode('utf-8').strip().upper()
+        
+        if command == "RED":
+            print("Received Red: Moving to 90°")
+            set_servo_angle(90)
+            time.sleep(2) # Give it time to move and the chilli to drop
+            
+        elif command == "GREEN":
+            print("Received Green: Moving to 0°")
+            set_servo_angle(0)
+            time.sleep(2)
+
+        # Optional: Reset to a middle position after sorting
+        set_servo_angle(45)
+
