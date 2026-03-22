@@ -1,0 +1,47 @@
+5) ESP32 receive the command
+
+from machine import Pin, PWM, UART
+import sys
+
+# 1. Setup
+MAX_LIMIT = 50
+red_count = 0
+green_count = 0
+
+# Using UART 0 (the one connected to the USB Port)
+# On most ESP32 boards, this is the default Serial
+uart = UART(0, baudrate=115200)
+
+servo = PWM(Pin(18), freq=50)
+
+def set_servo_angle(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+set_servo_angle(90) # Start at Neutral
+
+while True:
+    if uart.any():
+        # Read the command from Raspberry Pi
+        command = uart.readline().decode('utf-8').strip()
+        
+        if command == "RED":
+            if red_count < MAX_LIMIT:
+                set_servo_angle(45)
+                red_count += 1
+                print("ACK:RED_SORTED") # Tell Pi it's done
+            else:
+                print("ERR:RED_FULL")
+
+        elif command == "GREEN":
+            if green_count < MAX_LIMIT:
+                set_servo_angle(135)
+                green_count += 1
+                print("ACK:GREEN_SORTED")
+            else:
+                print("ERR:GREEN_FULL")
+
+        # Allow time for the pepper to drop, then reset
+        import time
+        time.sleep(2)
+        set_servo_angle(90)
