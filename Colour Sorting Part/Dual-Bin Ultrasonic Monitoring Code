@@ -1,0 +1,76 @@
+12) Dual-Bin Ultrasonic Monitoring Code
+from machine import Pin, PWM, UART, time_pulse_us
+import time
+
+# 1. Setup Pins
+TRIG = Pin(5, Pin.OUT)
+ECHO = Pin(18, Pin.IN)
+SERVO_PIN = Pin(19)
+ALERT_LED = Pin(2, Pin.OUT)
+
+# UART connection to Raspberry Pi
+uart = UART(0, baudrate=115200)
+
+# Servo Setup
+servo = PWM(SERVO_PIN, freq=50)
+
+# 2. Configuration
+DISTANCE_THRESHOLD = 5  # Alert if chillies are closer than 5cm
+red_count = 0
+green_count = 0
+
+def get_distance():
+    """Measures distance using the Ultrasonic Sensor"""
+    TRIG.value(0)
+    time.sleep_us(2)
+    TRIG.value(1)
+    time.sleep_us(10)
+    TRIG.value(0)
+    
+    # Measure the duration of the echo pulse
+    duration = time_pulse_us(ECHO, 1, 30000) # 30ms timeout
+    distance = (duration * 0.0343) / 2
+    return distance
+
+def set_servo_angle(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+def trigger_full_alert():
+    """Stops the robot and blinks the alert LED"""
+    print("!!! BIN IS PHYSICALLY FULL !!!")
+    while True:
+        ALERT_LED.value(1)
+        time.sleep(0.2)
+        ALERT_LED.value(0)
+        time.sleep(0.2)
+
+# Start in neutral
+set_servo_angle(90)
+
+while True:
+    # Continuously check the physical bin level
+    current_dist = get_distance()
+    
+    if current_dist > 0 and current_dist < DISTANCE_THRESHOLD:
+        trigger_full_alert()
+
+    # Wait for commands from Raspberry Pi YOLO
+    if uart.any():
+        command = uart.readline().decode('utf-8').strip().upper()
+        
+        if command == "RED":
+            set_servo_angle(45)
+            red_count += 1
+            time.sleep(2)
+            set_servo_angle(90)
+            print(f"Sorted Red. Total: {red_count}")
+
+        elif command == "GREEN":
+            set_servo_angle(135)
+            green_count += 1
+            time.sleep(2)
+            set_servo_angle(90)
+            print(f"Sorted Green. Total: {green_count}")
+
+    time.sleep(0.1)
