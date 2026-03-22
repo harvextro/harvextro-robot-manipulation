@@ -1,0 +1,38 @@
+19)Arrival
+import serial
+from ultralytics import YOLO
+
+esp32 = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
+model = YOLO('best.pt')
+
+print("Waiting for pepper arrival signal...")
+
+while True:
+    # Wait for the "CHECK_COLOR" trigger from ESP32
+    if esp32.in_waiting > 0:
+        line = esp32.readline().decode('utf-8').strip()
+        
+        if line == "CHECK_COLOR":
+            print("Pepper arrived! Running YOLO...")
+            
+            # Take one frame and detect
+            results = model.predict(source='0', save=False, conf=0.6)
+            
+            found = False
+            for r in results:
+                if len(r.boxes) > 0:
+                    # Get the top detection
+                    cls_id = int(r.boxes[0].cls[0])
+                    label = model.names[cls_id].lower()
+                    
+                    if "red" in label:
+                        esp32.write(b"RED\n")
+                        found = True
+                    elif "green" in label:
+                        esp32.write(b"GREEN\n")
+                        found = True
+            
+            if not found:
+                print("Could not identify color.")
+
+
