@@ -1,0 +1,53 @@
+from machine import Pin, PWM, UART
+import time
+
+# 1. Initialization
+MAX_LIMIT = 50
+red_count = 0
+green_count = 0
+
+# Setup UART (Serial) Communication
+# Baud rate 115200 is standard for AI camera modules
+uart = UART(2, baudrate=115200, tx=17, rx=16)
+
+# Servo Pin Setup (GPIO 18)
+servo = PWM(Pin(18), freq=50)
+
+def set_servo_angle(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+set_servo_angle(90)
+print("Waiting for YOLO data from AI Camera...")
+
+while True:
+    if uart.any():
+        # Read the message from the AI camera
+        data = uart.readline()
+        message = str(data, 'utf-8').strip().upper()
+        
+        print(f"YOLO Detection: {message}")
+
+        # DECISION & ACTION PHASE
+        if "RED" in message:
+            if red_count < MAX_LIMIT:
+                set_servo_angle(45)
+                red_count += 1
+                print(f"Sorted Red. Total: {red_count}")
+                time.sleep(2)
+            else:
+                print("Red Bin Full!")
+
+        elif "GREEN" in message:
+            if green_count < MAX_LIMIT:
+                set_servo_angle(135)
+                green_count += 1
+                print(f"Sorted Green. Total: {green_count}")
+                time.sleep(2)
+            else:
+                print("Green Bin Full!")
+
+        # Reset Servo to center
+        set_servo_angle(90)
+
+    time.sleep(0.1)
