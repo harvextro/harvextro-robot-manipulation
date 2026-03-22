@@ -1,0 +1,87 @@
+from machine import Pin, PWM, time_pulse_us
+import time
+
+# 1. Initialization
+MAX_LIMIT = 50
+red_count = 0
+green_count = 0
+
+# TCS3200 Pin Setup
+s2 = Pin(14, Pin.OUT)
+s3 = Pin(27, Pin.OUT)
+out_pin = Pin(26, Pin.IN)
+
+# Servo Pin Setup (GPIO 18)
+servo = PWM(Pin(18), freq=50)
+
+def set_servo_angle(angle):
+    """Function to rotate the servo motor according to the angle"""
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+def get_color_data():
+    """Takes 10 color readings and returns the average (Averaging)"""
+    r_total = 0
+    g_total = 0
+    
+    for _ in range(10):
+        # Reading Red color
+        s2.value(0)
+        s3.value(0)
+        r_total += time_pulse_us(out_pin, 0)
+        
+        # Reading Green color
+        s2.value(1)
+        s3.value(1)
+        g_total += time_pulse_us(out_pin, 0)
+        
+        time.sleep(0.01)
+        
+    return (r_total // 10), (g_total // 10)
+
+# Set servo to middle position (90°) at start
+set_servo_angle(90)
+print("System Active. Sorting can begin...")
+
+# 2. Main Loop
+while True:
+    # SENSING PHASE
+    r_avg, g_avg = get_color_data()
+    
+    # Check if an object is present (If value > 500, assumes no object)
+    if r_avg > 500 and g_avg > 500:
+        continue 
+        
+    # DECISION PHASE
+    target = "UNKNOWN"
+    if r_avg < g_avg:
+        target = "RED"
+    elif g_avg < r_avg:
+        target = "GREEN"
+        
+    # CAPACITY CHECK PHASE
+    if target == "RED" and red_count >= MAX_LIMIT:
+        print("WARNING: Red bin is full!")
+        break # Stops the robot
+        
+    if target == "GREEN" and green_count >= MAX_LIMIT:
+        print("WARNING: Green bin is full!")
+        break
+
+    # ACTION PHASE
+    if target == "RED":
+        print(f"Red pepper detected. Value: {r_avg}")
+        set_servo_angle(45) # Direct to red bin
+        red_count += 1
+        time.sleep(2) # Give time for the pepper to fall
+        
+    elif target == "GREEN":
+        print(f"Green pepper detected. Value: {g_avg}")
+        set_servo_angle(135) # Direct to green bin
+        green_count += 1
+        time.sleep(2)
+
+    # Return to neutral position
+    set_servo_angle(90)
+    print(f"Status: Red {red_count}, Green {green_count}")
+    time.sleep(1)
