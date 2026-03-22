@@ -1,0 +1,77 @@
+from machine import Pin, PWM, UART, time_pulse_us
+import time
+
+# --- PIN SETUP ---
+# Red Bin Sensor
+TRIG_RED = Pin(5, Pin.OUT)
+ECHO_RED = Pin(18, Pin.IN)
+
+# Green Bin Sensor
+TRIG_GREEN = Pin(4, Pin.OUT)
+ECHO_GREEN = Pin(15, Pin.IN)
+
+# Actuators
+SERVO = PWM(Pin(19), freq=50)
+ALERT_LED = Pin(2, Pin.OUT)
+
+# Communication
+uart = UART(0, baudrate=115200)
+
+# --- CONFIGURATION ---
+THRESHOLD = 5  # Stop if chillies are 5cm away from the sensor
+
+def get_distance(trig, echo):
+    """Measures distance for a specific sensor"""
+    trig.value(0)
+    time.sleep_us(2)
+    trig.value(1)
+    time.sleep_us(10)
+    trig.value(0)
+    
+    duration = time_pulse_us(echo, 1, 30000)
+    distance = (duration * 0.0343) / 2
+    return distance
+
+def set_servo(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    SERVO.duty(duty)
+
+def stop_system(bin_color):
+    """Halt the robot if a specific bin is full"""
+    print(f"ALERT: {bin_color} bin is physically FULL!")
+    while True:
+        ALERT_LED.value(1)
+        time.sleep(0.1)
+        ALERT_LED.value(0)
+        time.sleep(0.1)
+
+# Start Position
+set_servo(90)
+
+while True:
+    # 1. Physical Check of both bins
+    dist_red = get_distance(TRIG_RED, ECHO_RED)
+    dist_green = get_distance(TRIG_GREEN, ECHO_GREEN)
+
+    if 0 < dist_red < THRESHOLD:
+        stop_system("RED")
+    
+    if 0 < dist_green < THRESHOLD:
+        stop_system("GREEN")
+
+    # 2. Process YOLO commands from Raspberry Pi
+    if uart.any():
+        command = uart.readline().decode('utf-8').strip().upper()
+        
+        if command == "RED":
+            set_servo(45)
+            time.sleep(2)
+            set_servo(90)
+            
+        elif command == "GREEN":
+            set_servo(135)
+            time.sleep(2)
+            set_servo(90)
+
+    time.sleep(0.1)
+
