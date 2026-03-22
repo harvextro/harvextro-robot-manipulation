@@ -1,0 +1,86 @@
+14) Basket MicroPython Code
+Python
+from machine import Pin, PWM, UART, time_pulse_us
+import time
+
+# --- PIN SETUP ---
+# Ultrasonic Sensors for 3 Bins
+TRIG_RED = Pin(5, Pin.OUT)
+ECHO_RED = Pin(18, Pin.IN)
+
+TRIG_YELLOW = Pin(21, Pin.OUT) # New pins for Yellow sensor
+ECHO_YELLOW = Pin(22, Pin.IN)
+
+TRIG_GREEN = Pin(4, Pin.OUT)
+ECHO_GREEN = Pin(15, Pin.IN)
+
+# Actuators
+SERVO = PWM(Pin(19), freq=50)
+ALERT_LED = Pin(2, Pin.OUT)
+
+# Communication with Raspberry Pi
+uart = UART(0, baudrate=115200)
+
+# --- CONFIGURATION ---
+THRESHOLD = 5  # Stop if chillies are 5cm away from sensor
+
+def get_distance(trig, echo):
+    trig.value(0)
+    time.sleep_us(2)
+    trig.value(1)
+    time.sleep_us(10)
+    trig.value(0)
+    duration = time_pulse_us(echo, 1, 30000)
+    distance = (duration * 0.0343) / 2
+    return distance
+
+def set_servo(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    SERVO.duty(duty)
+
+def stop_system(bin_color):
+    print(f"!!! {bin_color} BIN IS FULL !!!")
+    while True:
+        ALERT_LED.value(1)
+        time.sleep(0.1)
+        ALERT_LED.value(0)
+        time.sleep(0.1)
+
+# Start Position (Neutral)
+set_servo(90)
+
+while True:
+    # 1. PHYSICAL CHECK (Check all 3 bins)
+    if 0 < get_distance(TRIG_RED, ECHO_RED) < THRESHOLD:
+        stop_system("RED")
+    
+    if 0 < get_distance(TRIG_YELLOW, ECHO_YELLOW) < THRESHOLD:
+        stop_system("YELLOW")
+        
+    if 0 < get_distance(TRIG_GREEN, ECHO_GREEN) < THRESHOLD:
+        stop_system("GREEN")
+
+    # 2. PROCESS YOLO COMMANDS
+    if uart.any():
+        command = uart.readline().decode('utf-8').strip().upper()
+        
+        if command == "RED":
+            print("Sorting Red...")
+            set_servo(45)
+            time.sleep(2)
+            set_servo(90)
+            
+        elif command == "YELLOW":
+            print("Sorting Yellow...")
+            set_servo(90) # Since Yellow is middle, we stay at 90
+            # You might need a mechanical 'push' here or 
+            # adjust angles if your bins are 0, 90, 180
+            time.sleep(2)
+            
+        elif command == "GREEN":
+            print("Sorting Green...")
+            set_servo(135)
+            time.sleep(2)
+            set_servo(90)
+
+    time.sleep(0.1)
