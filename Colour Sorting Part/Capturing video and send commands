@@ -1,0 +1,39 @@
+7)Capturing video and send commands
+
+import cv2
+import serial
+import time
+from ultralytics import YOLO
+
+# 1. Setup Serial Communication with ESP32
+# Ensure the port matches (check 'ls /dev/ttyUSB*' in terminal)
+try:
+    esp32 = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
+    print("Connected to ESP32")
+except:
+    print("ESP32 not found on /dev/ttyUSB0. Check connection.")
+
+# 2. Load the YOLO model
+model = YOLO('best.pt') # Replace with your actual model file
+
+# 3. Start Camera and Detection
+results = model.predict(source='0', show=True, stream=True, conf=0.5)
+
+for r in results:
+    for box in r.boxes:
+        # Get the Class ID (0, 1, etc.)
+        cls_id = int(box.cls[0])
+        # Get the Class Name ('Red' or 'Green')
+        label = model.names[cls_id]
+        
+        # Logic to differentiate based on the class label
+        if label.lower() == "red":
+            print("Detected: RED Scotch Bonnet")
+            esp32.write(b"RED\n")
+            time.sleep(3) # Pause detection while sorting
+            
+        elif label.lower() == "green":
+            print("Detected: GREEN Scotch Bonnet")
+            esp32.write(b"GREEN\n")
+            time.sleep(3) # Pause detection while sorting
+
