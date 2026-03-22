@@ -1,0 +1,30 @@
+6) Library to run Yolo
+
+import serial
+import time
+from ultralytics import YOLO
+
+# Connect to ESP32 via USB (usually /dev/ttyUSB0 or /dev/ttyACM0)
+esp32 = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
+
+# Load your custom trained Scotch Bonnet model
+model = YOLO('best.pt') 
+
+# Run Inference on camera
+results = model.predict(source='0', show=True, stream=True)
+
+for r in results:
+    for box in r.boxes:
+        # Get class name (assuming 0=Red, 1=Green in your model)
+        cls = int(box.cls[0])
+        label = model.names[cls]
+        
+        if label == "ripe_red":
+            print("Sending RED command...")
+            esp32.write(b"RED\n")
+            time.sleep(3) # Wait for ESP32 to finish sorting
+            
+        elif label == "unripe_green":
+            print("Sending GREEN command...")
+            esp32.write(b"GREEN\n")
+            time.sleep(3)
