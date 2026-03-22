@@ -1,0 +1,52 @@
+18) pepper has arrived
+from machine import Pin, PWM, UART, time_pulse_us
+import time
+
+# --- PINS ---
+TRIG = Pin(5, Pin.OUT)
+ECHO = Pin(18, Pin.IN)
+SERVO = PWM(Pin(19), freq=50)
+uart = UART(0, baudrate=115200)
+
+def get_distance():
+    TRIG.value(0)
+    time.sleep_us(2)
+    TRIG.value(1)
+    time.sleep_us(10)
+    TRIG.value(0)
+    duration = time_pulse_us(ECHO, 1, 30000)
+    return (duration * 0.0343) / 2
+
+def set_servo(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    SERVO.duty(duty)
+
+set_servo(45) # Neutral/Waiting position
+
+while True:
+    dist = get_distance()
+    
+    # 1. Check if a pepper arrived at the gate (e.g., within 8cm)
+    if 0 < dist < 8:
+        print("Object Detected at Gate!")
+        uart.write(b"CHECK_COLOR\n") # Tell Pi to run YOLO
+        
+        # 2. Wait for Pi's decision (timeout after 5 seconds)
+        start_time = time.time()
+        while (time.time() - start_time) < 5:
+            if uart.any():
+                command = uart.readline().decode('utf-8').strip().upper()
+                
+                if command == "RED":
+                    set_servo(90)
+                    time.sleep(2)
+                    break
+                elif command == "GREEN":
+                    set_servo(0)
+                    time.sleep(2)
+                    break
+        
+        set_servo(45) # Reset for next pepper
+    
+    time.sleep(0.1)
+
