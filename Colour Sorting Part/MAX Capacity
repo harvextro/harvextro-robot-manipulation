@@ -1,0 +1,64 @@
+2)MAX Capacity
+
+from machine import Pin, PWM, time_pulse_us
+import time
+
+# --- CONFIGURATION ---
+MAX_CAPACITY = 50  # Set your bin limit here
+red_bin_count = 0
+green_bin_count = 0
+
+# Pin Setup for TCS3200
+s2 = Pin(14, Pin.OUT)
+s3 = Pin(27, Pin.OUT)
+out_pin = Pin(26, Pin.IN)
+
+# Pin Setup for Servo (GPIO 18)
+servo = PWM(Pin(18), freq=50)
+
+def set_servo_angle(angle):
+    # Converts 0-180 degrees to duty cycle (approx 40 to 115 for ESP32)
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+def get_stable_color():
+    # Takes 5 readings and averages them to prevent "flicker" errors
+    r_total, g_total = 0, 0
+    for _ in range(5):
+        s2.value(0); s3.value(0)
+        r_total += time_pulse_us(out_pin, 0)
+        s2.value(1); s3.value(1)
+        g_total += time_pulse_us(out_pin, 0)
+        time.sleep(0.02)
+    return r_total // 5, g_total // 5
+
+# Start-up: Move servo to neutral (center) position
+set_servo_angle(90)
+print("Robot Initialized. Ready to harvest Scotch Bonnets!")
+
+while True:
+    r, g = get_stable_color()
+    
+    # Logic: Only act if something is actually in front of the sensor (Low pulse)
+    if r < 300 or g < 300:
+        if r < g:
+            color = "RED"
+            if red_bin_count < MAX_CAPACITY:
+                set_servo_angle(45) # Move arm to Red Bin
+                red_bin_count += 1
+                print(f"Ripe Red sorted! Red Bin: {red_bin_count}/{MAX_CAPACITY}")
+            else:
+                print("ALERT: Red Bin is FULL!")
+        else:
+            color = "GREEN"
+            if green_bin_count < MAX_CAPACITY:
+                set_servo_angle(135) # Move arm to Green Bin
+                green_bin_count += 1
+                print(f"Unripe Green sorted! Green Bin: {green_bin_count}/{MAX_CAPACITY}")
+            else:
+                print("ALERT: Green Bin is FULL!")
+        
+        time.sleep(2)        # Wait for pepper to slide down
+        set_servo_angle(90)  # Return to neutral
+    
+    time.sleep(0.5) # Check every half-second
