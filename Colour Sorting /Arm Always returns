@@ -1,0 +1,34 @@
+from machine import Pin, PWM, UART
+import time
+
+# Setup
+MAX_LIMIT = 50
+counts = {"RED": 0, "GREEN": 0}
+servo = PWM(Pin(18), freq=50)
+
+def set_servo(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+# Initialize
+set_servo(90)
+# Use UART 0 which is the USB-Serial bridge
+uart = UART(0, baudrate=115200)
+
+while True:
+    if uart.any():
+        command = uart.readline().decode('utf-8').strip().upper()
+        
+        if command in counts:
+            if counts[command] < MAX_LIMIT:
+                # Move to bin: 45 for RED, 135 for GREEN
+                angle = 45 if command == "RED" else 135
+                set_servo(angle)
+                
+                counts[command] += 1
+                print(f"ACK:{command}:{counts[command]}")
+                
+                time.sleep(2) # Wait for pepper to slide
+                set_servo(90) # Return to neutral
+            else:
+                print(f"FULL:{command}")
