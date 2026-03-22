@@ -1,0 +1,64 @@
+10) ESP32 MicroPython Code with Capacity Alerts
+from machine import Pin, PWM, UART
+import time
+
+# 1. Setup
+MAX_LIMIT = 50
+red_count = 0
+green_count = 0
+
+# Alert Pin (Using the built-in LED on GPIO 2, or connect a Buzzer)
+alert_led = Pin(2, Pin.OUT)
+
+# UART 0 connection to Raspberry Pi
+uart = UART(0, baudrate=115200)
+
+# Servo connected to GPIO 18
+servo = PWM(Pin(18), freq=50)
+
+def set_servo_angle(angle):
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+def trigger_alert():
+    """Blinks the LED/Buzzer to signal a full bin"""
+    while True:
+        alert_led.value(1)
+        time.sleep(0.5)
+        alert_led.value(0)
+        time.sleep(0.5)
+        print("SYSTEM HALTED: PLEASE EMPTY THE BINS")
+
+# Start in neutral
+set_servo_angle(90)
+alert_led.value(0)
+
+while True:
+    if uart.any():
+        command = uart.readline().decode('utf-8').strip().upper()
+        
+        # --- RED CHILLI LOGIC ---
+        if command == "RED":
+            if red_count < MAX_LIMIT:
+                set_servo_angle(45)
+                red_count += 1
+                time.sleep(2)
+                set_servo_angle(90)
+            else:
+                print("ALERT: Red Bin Full!")
+                trigger_alert() # This stops the whole code until reset
+
+        # --- GREEN CHILLI LOGIC ---
+        elif command == "GREEN":
+            if green_count < MAX_LIMIT:
+                set_servo_angle(135)
+                green_count += 1
+                time.sleep(2)
+                set_servo_angle(90)
+            else:
+                print("ALERT: Green Bin Full!")
+                trigger_alert() # This stops the whole code until reset
+
+        print(f"Stats - Red: {red_count}/{MAX_LIMIT}, Green: {green_count}/{MAX_LIMIT}")
+
+
