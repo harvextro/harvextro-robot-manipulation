@@ -1,0 +1,51 @@
+9) Sorting to Boxes
+from machine import Pin, PWM, UART
+import time
+
+# 1. Setup
+MAX_LIMIT = 50
+red_count = 0
+green_count = 0
+
+# UART 0 is the USB connection to the Raspberry Pi
+uart = UART(0, baudrate=115200)
+
+# Servo connected to GPIO 18
+servo = PWM(Pin(18), freq=50)
+
+def set_servo_angle(angle):
+    """Moves the arm to the specific box angle"""
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    servo.duty(duty)
+
+# Start in the neutral (middle) position
+set_servo_angle(90)
+
+while True:
+    if uart.any():
+        # Receive the 'Red' or 'Green' command from the Raspberry Pi YOLO model
+        command = uart.readline().decode('utf-8').strip().upper()
+        
+        # --- THE SORTING LOGIC ---
+        
+        if command == "RED":
+            if red_count < MAX_LIMIT:
+                print("Moving to RED box...")
+                set_servo_angle(45)  # Angle for the Red Box
+                red_count += 1
+                time.sleep(2)        # Wait for chilli to fall into the box
+            else:
+                print("Red box is full!")
+
+        elif command == "GREEN":
+            if green_count < MAX_LIMIT:
+                print("Moving to GREEN box...")
+                set_servo_angle(135) # Angle for the Green Box
+                green_count += 1
+                time.sleep(2)        # Wait for chilli to fall into the box
+            else:
+                print("Green box is full!")
+
+        # Reset arm to the center to wait for the next picked chilli
+        set_servo_angle(90)
+        print(f"Current Stats - Red: {red_count}, Green: {green_count}")
