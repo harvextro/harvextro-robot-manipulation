@@ -1,0 +1,48 @@
+16)The hand
+import cv2
+import serial
+import time
+from ultralytics import YOLO
+
+# 1. Setup Serial Communication
+# Match this to your ESP32's USB port (usually /dev/ttyUSB0)
+try:
+    esp32 = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
+    print("Communication established with ESP32.")
+except:
+    print("Error: ESP32 not found. Check USB connection.")
+
+# 2. Load your custom YOLO model
+model = YOLO('best.pt') 
+
+# 3. Run Inference on Camera Stream
+# 'conf=0.5' ignores detections that are less than 50% certain
+results = model.predict(source='0', show=True, stream=True, conf=0.5)
+
+for r in results:
+    for box in r.boxes:
+        # Get the Class ID and the Name assigned by the model
+        cls_id = int(box.cls[0])
+        label = model.names[cls_id].lower() # 'red', 'green', 'yellow', or 'mixed'
+        
+        # --- COMMAND LOGIC ---
+        
+        if "red" in label:
+            print("Action: Sorting RED")
+            esp32.write(b"RED\n")
+            time.sleep(3) # Wait for ESP32 to finish sorting
+            
+        elif "yellow" in label:
+            print("Action: Sorting YELLOW")
+            esp32.write(b"YELLOW\n")
+            time.sleep(3)
+            
+        elif "green" in label:
+            print("Action: Sorting GREEN")
+            esp32.write(b"GREEN\n")
+            time.sleep(3)
+            
+        elif "mixed" in label:
+            print("Action: Sorting MIXED")
+            esp32.write(b"MIXED\n")
+            time.sleep(3)
