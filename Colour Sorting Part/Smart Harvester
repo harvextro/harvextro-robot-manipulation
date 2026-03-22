@@ -1,0 +1,105 @@
+20)Smart Harvester
+from machine import Pin, PWM, UART, time_pulse_us
+import time
+
+# --- 1. PIN CONFIGURATION ---
+# Arrival Sensor (at the sorting gate)
+TRIG_GATE = Pin(5, Pin.OUT)
+ECHO_GATE = Pin(18, Pin.IN)
+
+# Bin Monitoring Sensors (Capacity)
+# Red Bin
+TRIG_RED = Pin(13, Pin.OUT)
+ECHO_RED = Pin(12, Pin.IN)
+# Green Bin
+TRIG_GREEN = Pin(14, Pin.OUT)
+ECHO_GREEN = Pin(27, Pin.IN)
+
+# Actuators
+SERVO = PWM(Pin(19), freq=50)
+ALERT_LED = Pin(2, Pin.OUT)
+
+# Communication (to Raspberry Pi)
+uart = UART(0, baudrate=115200)
+
+# --- 2. SETTINGS ---
+DIST_THRESHOLD = 5    # Bin is full if pepper is closer than 5cm
+GATE_THRESHOLD = 8    # Pepper arrived if closer than 8cm
+NEUTRAL_ANGLE = 45    # Waiting position
+RED_ANGLE = 90        # Red bin position
+GREEN_ANGLE = 0       # Green bin position
+
+def get_distance(trig, echo):
+    """Measures distance in cm using ultrasonic sensor"""
+    trig.value(0)
+    time.sleep_us(2)
+    trig.value(1)
+    time.sleep_us(10)
+    trig.value(0)
+    duration = time_pulse_us(echo, 1, 30000)
+    if duration < 0: return 999 # Timeout
+    return (duration * 0.0343) / 2
+
+def set_servo(angle):
+    """Moves servo to specific degree"""
+    duty = int(((angle / 180) * 2 + 0.5) / 20 * 1023)
+    SERVO.duty(duty)
+
+def check_capacities():
+    """Check if any bin is physically full before sorting"""
+    if 0 < get_distance(TRIG_RED, ECHO_RED) < DIST_THRESHOLD:
+        trigger_alert("RED BIN FULL")
+    if 0 < get_distance(TRIG_GREEN, ECHO_GREEN) < DIST_THRESHOLD:
+        trigger_alert("GREEN BIN FULL")
+
+def trigger_alert(message):
+    """Halts the system and blinks LED"""
+    print(f"!!! ALERT: {message} !!!")
+    while True:
+        ALERT_LED.value(1)
+        time.sleep(0.2)
+        ALERT_LED.value(0)
+        time.sleep(0.2)
+
+# --- 3. MAIN PROCESS ---
+print("System Initialized. Waiting for peppers...")
+set_servo(NEUTRAL_ANGLE)
+
+while True:
+    # A. Constant Capacity Monitoring
+    check_capacities()
+
+    # B. Object Arrival Detection
+    dist_at_gate = get_distance(TRIG_GATE, ECHO_GATE)
+    
+    if 0 < dist_at_gate < GATE_THRESHOLD:
+        print("Pepper detected at gate. Triggering YOLO...")
+        uart.write(b"CHECK_COLOR\n") # Send signal to Raspberry Pi
+        
+        # C. Wait for Pi Decision
+        start_wait = time.time()
+        decision_made = False
+        
+        while (time.time() - start_wait) < 5: # 5 second timeout
+            if uart.any():
+                command = uart.readline().decode('utf-8').strip().upper()
+                
+                if command == "RED":
+                    print("Sorting to RED box")
+                    set_servo(RED_ANGLE)
+                    decision_made = True
+                elif command == "GREEN":
+                    print("Sorting to GREEN box")
+                    set_servo(GREEN_ANGLE)
+                    decision_made = True
+                
+                if decision_made:
+                    time.sleep(2) # Wait for pepper to fall
+                    set_servo(NEUTRAL_ANGLE)
+                    break
+        
+        if not decision_made:
+            print("No response from Pi or unknown color.")
+
+    time.sleep(0.1)
+
